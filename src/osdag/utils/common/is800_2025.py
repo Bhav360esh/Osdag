@@ -453,18 +453,8 @@ class IS800_2025(object):
             6)  Members always under tension’) (other
                 than pre-tensioned members)
         """
-        if Type == 1:
-            return 180
-        elif Type == 2:
-            return 180
-        elif Type == 3:
-            return 180
-        elif Type == 4:
-            return 180
-        elif Type == 5:
-            return 180
-        elif Type == 6:
-            return 180
+        slenderness_limits = {1: 180, 2: 180, 3: 250, 4: 300, 5: 350, 6: 400}
+        return slenderness_limits.get(Type, 180)
     # ==========================================================================
     """    SECTION  4     METHODS OF STRUCTURAL ANALYSIS   """
     # ==========================================================================
@@ -875,7 +865,7 @@ class IS800_2025(object):
 
     @staticmethod
     def cl_8_2_1_2_design_bending_strength(section_class, Zp, Ze, fy, gamma_mo, support):
-        beta_b = 1.0 if section_class == KEY_Plastic or KEY_Compact else Ze/Zp
+        beta_b = 1.0 if section_class in (KEY_Plastic, KEY_Compact) else Ze / Zp
         Md = beta_b * Zp * fy / gamma_mo
         if support == KEY_DISP_SUPPORT1 :
             if Md < 1.2 * Ze * fy / gamma_mo:
@@ -956,10 +946,8 @@ class IS800_2025(object):
 
     @staticmethod
     def cl_8_2_2_Unsupported_beam_bending_fcrb(E, Llt_ry, hf_tf):
-        ''' Author : Rutvik Joshi
-        Clauses: 8.2.2.1 and Annex E
-        '''
-        fcrb = 1.1 * math.pi**2 * E * (1 + (Llt_ry/hf_tf)**2/20)**0.5 / Llt_ry
+        """Author: Rutvik Joshi — Clauses: 8.2.2.1 and Annex E."""
+        fcrb = (1.1 * math.pi ** 2 * E / (Llt_ry ** 2)) * math.sqrt(1 + ((Llt_ry / hf_tf) ** 2) / 20)
         return fcrb
     @staticmethod
     def cl_8_2_2_1_elastic_buckling_moment(betab, Zp, Ze, fy, Mcr, fcrb = 0):
@@ -1255,70 +1243,43 @@ class IS800_2025(object):
         M_fr = 0.25 * bf * tf ** 2 * fyf * (1 - (Nf / (bf * tf * fyf / gamma_mo)) ** 2)
         return  M_fr
     @staticmethod
-    def cl_8_4_2_2_TensionField( c, d, tw, fyw, bf,tf, fyf,Nf, gamma_mo, A_v,tau_b,V_p):
-        '''based on the post-shear buckling
-            strength, may be used for webs with
-            intermediate transverse stiffeners, in addition
-            to the transverse stiffeners at supports, provided
-            the panels adjacent to the panel under tension
-            field action, or the end posts provide anchorage
-            for the tension fields
-
-        Author: Rutvik Joshi    '''
-
-        phi = math.atan(d/c) * 180/math.pi
-        M_fr = 0.25 * bf * tf**2 * fyf*(1-(Nf/(bf * tf * fyf / gamma_mo))**2)
-        s = 2 * math.sqrt(M_fr / (fyw * tw)) / math.sin(phi*math.pi/180)
-        if s <= c:
-            pass
-        else:
-            s == c
-        w_tf = d * math.cos(phi*math.pi/180) + (c-2*s)*math.sin(phi*math.pi/180)
-        sai = 1.5 * tau_b * math.sin(2*phi*math.pi/180)
-        fv = math.sqrt(fyw**2 - 3 * tau_b**2 + sai**2) - sai
-        V_tf = A_v * tau_b + 0.9 * w_tf * tw * fv * math.sin(phi*math.pi/180)/ 10 ** 3
-        if V_tf <= V_p:
-            pass
-        else:
-            V_tf == V_p
-        return phi,M_fr,s, w_tf,sai,fv,V_tf
-
-    @staticmethod
-    def cl_8_5_1_EndPanel(c, d, tw, fyw, bf, tf, fyf, Nf, gamma_mo, A_v, tau_b, V_p):
-        '''The design of end panels in girders in which the interior
-        panel (panel A) is designed using tension field action
-        shall be carried in accordance with the provisions given
-        herein.
-        only simple post critical method design
-        Author: Rutvik Joshi    '''
-
+    def cl_8_4_2_2_TensionField(c, d, tw, fyw, bf, tf, fyf, Nf, gamma_mo, A_v, tau_b, V_p):
         phi = math.atan(d / c) * 180 / math.pi
-        M_fr = 0.25 * bf * tf ** 3 * fyf * (1 - (Nf / (bf * tf * fyf / gamma_mo)) ** 2)
-        print('phi', phi, '\n Nf', Nf, M_fr, 'M_fr', phi * math.pi / 180)
+        M_fr = 0.25 * bf * tf ** 2 * fyf * (1 - (Nf / (bf * tf * fyf / gamma_mo)) ** 2)
         s = 2 * math.sqrt(M_fr / (fyw * tw)) / math.sin(phi * math.pi / 180)
-        if s <= c:
-            pass
-        else:
-            s == c
+        if s > c:
+            s = c
         w_tf = d * math.cos(phi * math.pi / 180) + (c - 2 * s) * math.sin(phi * math.pi / 180)
         sai = 1.5 * tau_b * math.sin(2 * phi * math.pi / 180)
         fv = math.sqrt(fyw ** 2 - 3 * tau_b ** 2 + sai ** 2) - sai
         V_tf = A_v * tau_b + 0.9 * w_tf * tw * fv * math.sin(phi * math.pi / 180) / 10 ** 3
-        if V_tf <= V_p:
-            pass
-        else:
-            V_tf == V_p
+        if V_tf > V_p:
+            V_tf = V_p
+        return phi, M_fr, s, w_tf, sai, fv, V_tf
+
+    @staticmethod
+    def cl_8_5_1_EndPanel(c, d, tw, fyw, bf, tf, fyf, Nf, gamma_mo, A_v, tau_b, V_p):
+        phi = math.atan(d / c) * 180 / math.pi
+        M_fr = 0.25 * bf * tf ** 2 * fyf * (1 - (Nf / (bf * tf * fyf / gamma_mo)) ** 2)
+        s = 2 * math.sqrt(M_fr / (fyw * tw)) / math.sin(phi * math.pi / 180)
+        if s > c:
+            s = c
+        w_tf = d * math.cos(phi * math.pi / 180) + (c - 2 * s) * math.sin(phi * math.pi / 180)
+        sai = 1.5 * tau_b * math.sin(2 * phi * math.pi / 180)
+        fv = math.sqrt(fyw ** 2 - 3 * tau_b ** 2 + sai ** 2) - sai
+        V_tf = A_v * tau_b + 0.9 * w_tf * tw * fv * math.sin(phi * math.pi / 180) / 10 ** 3
+        if V_tf > V_p:
+            V_tf = V_p
         return phi, M_fr, s, w_tf, sai, fv, V_tf
     # ==========================================================================
     """    SECTION  9     MEMBER SUBJECTED TO COMBINED FORCES   """
 
     @staticmethod
     def cl_9_2_2_high_shear_moment(Md, Mfd, b, Ze, fy, gamma_mo):
-        Mdv=Md - b(Md-Mfd)
-        if Mdv <= 1.2*Ze*fy/gamma_mo:
+        Mdv = Md - b * (Md - Mfd)
+        if Mdv <= 1.2 * Ze * fy / gamma_mo:
             return Mdv
         else:
-            print('Reduced elastic buckling moment error')
             return 0
     # ==========================================================================
     """   SECTION  10    CONNECTIONS    """
