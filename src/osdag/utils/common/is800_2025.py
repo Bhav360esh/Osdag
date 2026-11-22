@@ -9,7 +9,7 @@ from ...Common import *
 # from ...Common import KEY_DP_FAB_SHOP
 
 
-class IS800_2007(object):
+class IS800_2025(object):
     """Perform calculations on steel design as per IS 800:2007
 
     """
@@ -43,7 +43,7 @@ class IS800_2007(object):
         Reference: Table 2 and Cl.3.7.2, IS 800:2007
 
         """
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
         epsilon = math.sqrt(250 / f_y)
 
         ratio = depth / web_thickness  # ratio of the web/component
@@ -209,13 +209,6 @@ class IS800_2007(object):
                 section_class = 'Semi-Compact'
             else:
                 section_class = 'Slender'
-        print(f" flange_class"
-                    f" width {width}"
-                    f" thickness {thickness}"
-                    f" epsilon {epsilon}"
-                    )
-        print(f" section_type {section_type}"
-              f" section_class {section_class}")
         return [section_class, ratio]
 
     @staticmethod
@@ -239,12 +232,6 @@ class IS800_2007(object):
 
         ratio = depth / thickness
 
-        print(f" web_class \n" 
-              f" depth {depth} \n"
-              f" thickness {thickness} \n"
-              f" epsilon {epsilon} \n"
-               f" classification_type {classification_type}\n"
-              )
 
         if classification_type == 'Neutral axis at mid-depth':
             if ratio < (84 * epsilon):
@@ -263,7 +250,6 @@ class IS800_2007(object):
                 section_class = 'Slender'
             else:
                 section_class = 'Semi-Compact'
-        print(f" section_class {section_class}")
 
         return section_class
 
@@ -419,7 +405,6 @@ class IS800_2007(object):
 
         ratio = outer_diameter / tube_thickness
 
-        print(f"outer_diameter{outer_diameter},tube_thickness{tube_thickness}")
 
         if load_type == 'axial compression':
             if ratio > (88 * epsilon**2):
@@ -511,7 +496,7 @@ class IS800_2007(object):
         :param f_y: yield stress of the material
         :return: design strength in tension yielding
         """
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
         T_dg = A_g * f_y / gamma_m0
         return T_dg
     # ------------------------------------------------------------
@@ -526,7 +511,7 @@ class IS800_2007(object):
         :param f_u: ultimate stress of the material
         :return: design strength in tension rupture
         """
-        gamma_m1 = IS800_2007.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
+        gamma_m1 = IS800_2025.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
         T_dn = 0.9*A_n*f_u/gamma_m1
         return T_dn
     #   6.4 Design Strength Due to Block Shear
@@ -555,8 +540,8 @@ class IS800_2007(object):
             IS 800:2007, cl. 6.4.1
 
         """
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5["gamma_m0"]['yielding']
-        gamma_m1 = IS800_2007.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m1 = IS800_2025.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
         T_db1 = A_vg * f_y / (math.sqrt(3) * gamma_m0) + 0.9 * A_tn * f_u / gamma_m1
         T_db2 = 0.9 * A_vn * f_u / (math.sqrt(3) * gamma_m1) + A_tg * f_y / gamma_m0
         return min(T_db1, T_db2)
@@ -1163,7 +1148,7 @@ class IS800_2007(object):
              Design shear strength in yielding of the component in N
 
         """
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
         V_d = ((A_vg * f_y) / (math.sqrt(3) * gamma_m0))  # N
 
         return V_d
@@ -1180,7 +1165,7 @@ class IS800_2007(object):
         Returns:
             Design bending strength of the cross-section in N-mm (float)
         """
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
 
         if section_class == 'semi-compact':
             M_d = (Z_e * f_y) / gamma_m0  # N-mm
@@ -1226,14 +1211,12 @@ class IS800_2007(object):
 
     @staticmethod
     def cl_8_4_2_2_tau_crc_Simple_postcritical(K_v, E,mu, d, tw):
-        print('K_v',K_v,'\n E',E,'\nmu',mu,' d',d,' tw',tw)
         tau_crc = (K_v * math.pi**2 * E)/(12*(1-mu**2)*(d/tw)**2)
 
         return tau_crc
 
     @staticmethod
     def cl_8_4_2_2_lambda_w_Simple_postcritical(fyw, tau_crc):
-        print('fyw',fyw,'\n tau_crc',tau_crc)
 
         lambda_w = math.sqrt(fyw/(math.sqrt(3) * tau_crc))
 
@@ -1241,7 +1224,6 @@ class IS800_2007(object):
 
     @staticmethod
     def cl_8_4_2_2_tau_b_Simple_postcritical(lambda_w, fyw):
-        print('fyw',fyw,' lambda_w',lambda_w)
         if lambda_w <= 0.8:
             tau_b = fyw / math.sqrt(3)
         elif lambda_w < 1.2 and lambda_w > 0.8:
@@ -1253,7 +1235,6 @@ class IS800_2007(object):
 
     @staticmethod
     def cl_8_4_2_2_Vcr_Simple_postcritical(tau_b, A_v):
-        print('tau_b',tau_b,'\n A_v',A_v)
 
         V_cr = A_v * tau_b
 
@@ -1272,7 +1253,6 @@ class IS800_2007(object):
         Author: Rutvik Joshi    '''
 
         M_fr = 0.25 * bf * tf ** 2 * fyf * (1 - (Nf / (bf * tf * fyf / gamma_mo)) ** 2)
-        print(M_fr, 'M_fr')
         return  M_fr
     @staticmethod
     def cl_8_4_2_2_TensionField( c, d, tw, fyw, bf,tf, fyf,Nf, gamma_mo, A_v,tau_b,V_p):
@@ -1288,7 +1268,6 @@ class IS800_2007(object):
 
         phi = math.atan(d/c) * 180/math.pi
         M_fr = 0.25 * bf * tf**2 * fyf*(1-(Nf/(bf * tf * fyf / gamma_mo))**2)
-        print('phi',phi,'\n Nf',Nf,M_fr,'M_fr',phi*math.pi/180)
         s = 2 * math.sqrt(M_fr / (fyw * tw)) / math.sin(phi*math.pi/180)
         if s <= c:
             pass
@@ -1302,7 +1281,6 @@ class IS800_2007(object):
             pass
         else:
             V_tf == V_p
-            print('phi',phi,'\n M_fr',M_fr,'\n s',s, '\n c',c, '\n w_tf', w_tf, '\n sai',sai,'\n fv',fv,'\n V_tf',V_tf,'\n V_p',V_p)
         return phi,M_fr,s, w_tf,sai,fv,V_tf
 
     @staticmethod
@@ -1358,7 +1336,7 @@ class IS800_2007(object):
     def cl_8_7_1_3_stiff_bearing_length(shear_force, web_thickness, flange_thickness, root_radius, fy):
         #     This function returns the stiff bearing length, b1 for web local yielding and web crippling check
         #     Minimum value of b1 is not defined in IS 800, reference has been made to AISC for such cases (CL. J10-2)
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5['gamma_m0']['yielding']
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5['gamma_m0']['yielding']
         bearing_length = round((float(shear_force) * 1000) * gamma_m0 / web_thickness / fy, 3)
         b1_req = bearing_length - (flange_thickness + root_radius)
         k = flange_thickness + root_radius
@@ -1484,7 +1462,7 @@ class IS800_2007(object):
             IS 800:2007, cl. 10.2.4.2
         """
 
-        d_0 = IS800_2007.cl_10_2_1_bolt_hole_size(d, bolt_hole_type)
+        d_0 = IS800_2025.cl_10_2_1_bolt_hole_size(d, bolt_hole_type)
         if edge_type == 'Sheared or hand flame cut':
             return 1.7 * d_0
         else:
@@ -1566,7 +1544,7 @@ class IS800_2007(object):
             IS 800:2007,  cl 10.3.3
         """
         V_nsb = f_ub / math.sqrt(3) * (n_n * A_nb + n_s * A_sb)
-        gamma_mb = IS800_2007.cl_5_4_1_Table_5['gamma_mb'][KEY_DP_FAB_SHOP]
+        gamma_mb = IS800_2025.cl_5_4_1_Table_5['gamma_mb'][KEY_DP_FAB_SHOP]
         V_dsb = V_nsb / gamma_mb
         return V_dsb
 
@@ -1608,8 +1586,8 @@ class IS800_2007(object):
         """
         beta_lg = 8.0 / (3.0 + l_g / d)
         if l_j != 0.0:
-            if beta_lg >= IS800_2007.cl_10_3_3_1_bolt_long_joint(d, l_j):
-                beta_lg = IS800_2007.cl_10_3_3_1_bolt_long_joint(d, l_j)
+            if beta_lg >= IS800_2025.cl_10_3_3_1_bolt_long_joint(d, l_j):
+                beta_lg = IS800_2025.cl_10_3_3_1_bolt_long_joint(d, l_j)
         else:
             pass
         if l_g <= 5.0 * d:
@@ -1658,7 +1636,7 @@ class IS800_2007(object):
             Reference:
             IS 800:2007,  cl 10.3.4
         """
-        d_0 = IS800_2007.cl_10_2_1_bolt_hole_size(d, bolt_hole_type)
+        d_0 = IS800_2025.cl_10_2_1_bolt_hole_size(d, bolt_hole_type)
 
         if p > 0.0:
             k_b = min(e / (3.0 * d_0), p / (3.0 * d_0) - 0.25, f_ub / f_u, 1.0)
@@ -1667,7 +1645,7 @@ class IS800_2007(object):
 
         k_b = round(k_b, 2)
         V_npb = 2.5 * k_b * d * t * f_u
-        gamma_mb = IS800_2007.cl_5_4_1_Table_5['gamma_mb'][safety_factor_parameter]
+        gamma_mb = IS800_2025.cl_5_4_1_Table_5['gamma_mb'][safety_factor_parameter]
         V_dpb = V_npb / gamma_mb
 
         if bolt_hole_type == 'Over-sized' or bolt_hole_type == 'short_slot':
@@ -1691,8 +1669,8 @@ class IS800_2007(object):
             Reference:
             IS 800:2007,  cl 10.3.5
         """
-        gamma_mb = IS800_2007.cl_5_4_1_Table_5['gamma_mb'][safety_factor_parameter]
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5['gamma_m0']['yielding']
+        gamma_mb = IS800_2025.cl_5_4_1_Table_5['gamma_mb'][safety_factor_parameter]
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5['gamma_m0']['yielding']
         T_nb = min(0.90 * f_ub * A_n, f_yb * A_sb * gamma_mb / gamma_m0)
         return T_nb / gamma_mb
 
@@ -1777,9 +1755,9 @@ class IS800_2007(object):
             IS 800:2007,  cl 10.4.5
             AMENDMENT NO. 1 (JANUARY 2012) to IS 800:2007
         """
-        gamma_mf = IS800_2007.cl_5_4_1_Table_5['gamma_mf'][safety_factor_parameter]
-        gamma_m0 = IS800_2007.cl_5_4_1_Table_5['gamma_m0']['yielding']
-        gamma_m1 = IS800_2007.cl_5_4_1_Table_5['gamma_m1']['ultimate_stress']
+        gamma_mf = IS800_2025.cl_5_4_1_Table_5['gamma_mf'][safety_factor_parameter]
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5['gamma_m0']['yielding']
+        gamma_m1 = IS800_2025.cl_5_4_1_Table_5['gamma_m1']['ultimate_stress']
 
         T_nf = min(0.9 * f_ub * A_n, f_yb * A_sb * gamma_m1 / gamma_m0)
         return T_nf / gamma_mf
@@ -1932,7 +1910,7 @@ class IS800_2007(object):
             IS 800:2007,  cl 10.5.3.2
 
         """
-        K = IS800_2007.cl_10_5_3_2_factor_for_throat_thickness(fusion_face_angle)
+        K = IS800_2025.cl_10_5_3_2_factor_for_throat_thickness(fusion_face_angle)
 
         throat = max(round((K * fillet_size),2), 3)
 
@@ -2026,7 +2004,7 @@ class IS800_2007(object):
         """
         f_u = min(ultimate_stresses)
         f_wn = (f_u / math.sqrt(3))
-        gamma_mw = IS800_2007.cl_5_4_1_Table_5['gamma_mw'][fabrication]
+        gamma_mw = IS800_2025.cl_5_4_1_Table_5['gamma_mw'][fabrication]
         f_wd = f_wn / gamma_mw
         return f_wd
 
