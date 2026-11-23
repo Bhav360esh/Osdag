@@ -18,6 +18,39 @@ class IS800_2025(object):
     """    SECTION  1     GENERAL   """
     # ==========================================================================
     """    SECTION  2     MATERIALS   """
+
+    # Draft IS 800:2025 - Expanded Structural Steel Standards & Grades
+    # Covers IS 2062 (general/high-strength), IS 15103 (fire-resistant),
+    # IS 11587 (weather-resistant), and IS 15962 (seismic-resistant).
+    draft_2025_steel_grades = {
+        # (standard, fy_lt_20mm_MPa, fu_MPa)
+        "E250": ("IS 2062", 250.0, 410.0),
+        "E300": ("IS 2062", 300.0, 440.0),
+        "E350": ("IS 2062", 350.0, 490.0),
+        "E410": ("IS 2062", 410.0, 540.0),
+        "E450": ("IS 2062", 450.0, 570.0),
+        "E550": ("IS 2062", 550.0, 650.0),
+        "E650": ("IS 2062", 650.0, 710.0),
+        "FR_E250": ("IS 15103", 250.0, 410.0),
+        "FR_E350": ("IS 15103", 350.0, 490.0),
+        "WR_E250": ("IS 11587", 250.0, 410.0),
+        "WR_E350": ("IS 11587", 350.0, 490.0),
+        "EQ_E250": ("IS 15962", 250.0, 410.0),
+        "EQ_E350": ("IS 15962", 350.0, 490.0),
+    }
+
+    @staticmethod
+    def draft_2025_steel_properties(grade):
+        """Return (standard, fy_MPa, fu_MPa) for Draft IS 800:2025 steel grades.
+
+        Note: Thickness-dependent reductions (for thicker plates/sections) should
+        be applied according to the relevant product standard and Draft IS 800:2025.
+        """
+        key = str(grade).strip().upper()
+        if key not in IS800_2025.draft_2025_steel_grades:
+            raise ValueError(f"Unsupported or unmapped steel grade in Draft IS 800:2025: {grade}")
+        return IS800_2025.draft_2025_steel_grades[key]
+
     # -------------------------------------------------------------
     #   5.4 Strength
     # -------------------------------------------------------------
@@ -212,7 +245,7 @@ class IS800_2025(object):
         return [section_class, ratio]
 
     @staticmethod
-    def Table2_iii(depth, thickness, f_y, classification_type='Neutral axis at mid-depth'):
+    def Table2_iii(depth, thickness, f_y, classification_type='Neutral axis at mid-depth', axial_load=None, load_type='compression'):
         """ Calculate the limiting width to thickness ratio as per Table 2 for;
                 sr. no iii) Web of an I, H or box section for axial compression
 
@@ -220,12 +253,14 @@ class IS800_2025(object):
             depth: width of the element in mm (float or int)
             thickness: thickness of the element in mm (float or int)
             f_y: yield stress of the section material in MPa (float or int)
-            classification_type: Type of classification required (Neutral axis at mid-depth, Generaly, Axial Compression) (string)
+            classification_type: Type of classification required (Neutral axis at mid-depth, Generally, Axial Compression) (string)
+            axial_load: factored axial load in N (float, optional, required for 'Generally')
+            load_type: type of axial load ('compression' or 'tension') (string, optional)
 
         Returns:
             The class of the section as Plastic, Compact, Semi-compact or Slender on account of the web
 
-        Reference: Table 2 and Cl.3.7.2, IS 800:2007
+        Reference: Table 2 and Cl.3.7.2, IS 800:2007 / IS 800:2025
 
         """
         epsilon = math.sqrt(250 / f_y)
@@ -244,7 +279,32 @@ class IS800_2025(object):
                 section_class = 'Slender'
 
         elif classification_type == 'Generally':
-            pass
+            if axial_load is None or depth <= 0 or thickness <= 0 or f_y <= 0:
+                raise ValueError("Valid axial_load, depth, thickness, and f_y are required for 'Generally' check.")
+            gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+            actual_avg_stress = axial_load / (depth * thickness)
+            design_compressive_stress = f_y / gamma_m0
+            r_1 = actual_avg_stress / design_compressive_stress
+            if str(load_type).lower() != 'compression':
+                r_1 = -r_1
+
+            if r_1 < 0:
+                lim_plastic = 84.0 * epsilon / (1.0 + r_1)
+                lim_compact = 105.0 * epsilon / (1.0 + r_1)
+                lim_semicompact = 126.0 * epsilon / (1.0 + r_1)
+            else:
+                lim_plastic = min(84.0 * epsilon / (1.0 + r_1), 42.0 * epsilon)
+                lim_compact = min(105.0 * epsilon / (1.0 + 1.5 * r_1), 42.0 * epsilon)
+                lim_semicompact = min(126.0 * epsilon / (1.0 + 2.0 * r_1), 42.0 * epsilon)
+
+            if ratio <= lim_plastic:
+                section_class = KEY_Plastic
+            elif ratio <= lim_compact:
+                section_class = KEY_Compact
+            elif ratio <= lim_semicompact:
+                section_class = KEY_SemiCompact
+            else:
+                section_class = 'Slender'
         elif classification_type == 'Axial compression':
             if ratio > (42 * epsilon):
                 section_class = 'Slender'
@@ -504,6 +564,38 @@ class IS800_2025(object):
         gamma_m1 = IS800_2025.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
         T_dn = 0.9*A_n*f_u/gamma_m1
         return T_dn
+
+    # cl.6.3.3 Single Angles
+    @staticmethod
+    def cl_6_3_3_tension_rupture_single_angle(A_nc, A_go, f_u, f_y, w, t, b_s, L_c):
+        """Calculate design tensile strength of a single angle connected through one leg
+        accounting for shear lag (IS 800:2007 Cl. 6.3.3 / Draft IS 800:2025 tension provisions).
+
+        Args:
+            A_nc: Net area of the connected leg (mm^2)
+            A_go: Gross area of the outstanding leg (mm^2)
+            f_u: Ultimate tensile strength of steel (MPa)
+            f_y: Yield strength of steel (MPa)
+            w: Outstanding leg width (mm)
+            t: Thickness of the leg (mm)
+            b_s: Shear lag width parameter as defined in the code (mm)
+            L_c: Length of the end connection along the line of action of load (mm)
+
+        Returns:
+            Design tensile rupture strength T_dn in N (float)
+        """
+        if min(A_nc, A_go, f_u, f_y, w, t, L_c) <= 0:
+            raise ValueError("All geometric and material parameters must be positive.")
+
+        gamma_m0 = IS800_2025.cl_5_4_1_Table_5["gamma_m0"]['yielding']
+        gamma_m1 = IS800_2025.cl_5_4_1_Table_5["gamma_m1"]['ultimate_stress']
+
+        beta = 1.4 - 0.076 * (w / t) * (f_y / f_u) * (b_s / L_c)
+        upper_bound = (f_u * gamma_m0) / (f_y * gamma_m1)
+        beta = max(0.7, min(beta, upper_bound))
+
+        T_dn = (0.9 * A_nc * f_u / gamma_m1) + (beta * A_go * f_y / gamma_m0)
+        return T_dn
     #   6.4 Design Strength Due to Block Shear
     # -------------------------------------------------------------
 
@@ -557,7 +649,7 @@ class IS800_2025(object):
             cl 7.4.1 suggests the maximum bearing strength equal to 0.60 times f_ck,
             but, the value is amended to 0.45 times f_ck (f_ck is the characteristic strength of concrete)
         """
-        f_ck = {
+        concrete_grades = {
             'M10': 10,
             'M15': 15,
             'M20': 20,
@@ -568,8 +660,17 @@ class IS800_2025(object):
             'M45': 45,
             'M50': 50,
             'M55': 55,
-        }[str(concrete_grade)]
+            'M60': 60,
+            'M65': 65,
+            'M70': 70,
+            'M75': 75,
+            'M80': 80,
+        }
+        grade_key = str(concrete_grade).strip().upper()
+        if grade_key not in concrete_grades:
+            raise ValueError(f"Unknown or unsupported concrete grade: '{concrete_grade}'")
 
+        f_ck = concrete_grades[grade_key]
         bearing_strength = 0.45 * f_ck  # MPa (N/mm^2)
         return bearing_strength
 
@@ -733,7 +834,7 @@ class IS800_2025(object):
                         'z-z': 'a',
                         'y-y': 'b'
                     }
-                elif 40 <= t_f <= 100:
+                elif t_f <= 100:
                     buckling_class = {
                         'z-z': 'b',
                         'y-y': 'c'
@@ -749,7 +850,7 @@ class IS800_2025(object):
                         'z-z': 'b',
                         'y-y': 'c'
                     }
-                if t_f > 100:
+                else:
                     buckling_class = {
                         'z-z': 'd',
                         'y-y': 'd'
@@ -761,7 +862,7 @@ class IS800_2025(object):
                     'z-z': 'b',
                     'y-y': 'c'
                 }
-            if t_f > 40:
+            else:
                 buckling_class = {
                     'z-z': 'c',
                     'y-y': 'd'
@@ -778,6 +879,13 @@ class IS800_2025(object):
                     'z-z': 'b',
                     'y-y': 'b'
                 }
+
+        elif cross_section == 'Welded Box Section':
+            buckling_class = {'z-z': 'b', 'y-y': 'b'}
+        elif cross_section in ('Channel, Angle, T and Solid Sections', 'Built-up Member'):
+            buckling_class = {'z-z': 'c', 'y-y': 'c'}
+        else:
+            raise ValueError(f"Unknown or unsupported cross_section type: '{cross_section}'")
 
         return buckling_class
 
@@ -925,6 +1033,19 @@ class IS800_2025(object):
         if si > 1.0:
             si = 1.0
         return si
+
+    @staticmethod
+    def cl_8_2_2_1_ltb_imperfection_factor(section_type='Rolled'):
+        """Return lateral-torsional buckling imperfection factor alpha_LT.
+
+        Rolled steel sections: 0.21; Welded steel sections: 0.49.
+        """
+        key = str(section_type).strip().lower()
+        if key == 'rolled':
+            return 0.21
+        elif key == 'welded':
+            return 0.49
+        raise ValueError(f"Unknown section_type for LTB imperfection factor: {section_type}")
 
     @staticmethod
     def cl_8_2_2_Unsupported_beam_bending_phi_lt(alpha_lt, lambda_lt):
@@ -1281,6 +1402,18 @@ class IS800_2025(object):
             return Mdv
         else:
             return 0
+
+    @staticmethod
+    def cl_9_3_1_1_combined_axial_and_bending_linear(N, N_d, M_y, M_dy, M_z, M_dz):
+        """Linear interaction check for member under combined axial force and biaxial bending.
+
+        Returns:
+            tuple: (interaction_ratio, is_safe) where is_safe is True if ratio <= 1.0.
+        """
+        if min(N_d, M_dy, M_dz) <= 0:
+            raise ValueError("Design capacities N_d, M_dy, and M_dz must be positive.")
+        ratio = (abs(N) / N_d) + (abs(M_y) / M_dy) + (abs(M_z) / M_dz)
+        return ratio, (ratio <= 1.0)
     # ==========================================================================
     """   SECTION  10    CONNECTIONS    """
 
@@ -1505,7 +1638,8 @@ class IS800_2025(object):
             IS 800:2007,  cl 10.3.3
         """
         V_nsb = f_ub / math.sqrt(3) * (n_n * A_nb + n_s * A_sb)
-        gamma_mb = IS800_2025.cl_5_4_1_Table_5['gamma_mb'][KEY_DP_FAB_SHOP]
+        fab_key = safety_factor_parameter if safety_factor_parameter is not None else KEY_DP_FAB_FIELD
+        gamma_mb = IS800_2025.cl_5_4_1_Table_5['gamma_mb'][fab_key]
         V_dsb = V_nsb / gamma_mb
         return V_dsb
 
@@ -1683,13 +1817,15 @@ class IS800_2025(object):
         else:
             # TODO : slip _resistance for 'ultimate_load' is given in else
             gamma_mf = 1.25
-        if bolt_hole_type == 'Standard':
+        b_type = str(bolt_hole_type).strip().lower()
+        if b_type == 'standard':
             K_h = 1.0
-        elif bolt_hole_type == 'Over-sized' or bolt_hole_type == 'short_slot' or bolt_hole_type == 'long_slot':
+        elif b_type in ('over-sized', 'oversized', 'short_slot', 'long_slot', 'long_slot_normal'):
             K_h = 0.85
+        elif b_type in ('long_slot_parallel', 'parallel_slot'):
+            K_h = 0.70
         else:
-            # TODO : long_slot bolt loaded parallel to slot is given in else
-            K_h = 0.7
+            K_h = 0.70
         if mu_f >= 0.55:
             mu_f = 0.55
         V_nsf = mu_f * n_e * K_h * F_0
@@ -2017,6 +2153,15 @@ class IS800_2025(object):
     # -------------------------------------------------------------
     # ==========================================================================
     """    SECTION  11    WORKING STRESS DESIGN   """
+
+    @staticmethod
+    def working_stress_design_removed():
+        """Working Stress Design (WSD) is discontinued in Draft IS 800:2025."""
+        raise NotImplementedError(
+            "Working Stress Design (Section 11 in IS 800:2007) has been removed in Draft IS 800:2025; "
+            "use Limit State Design provisions instead."
+        )
+
     # ==========================================================================
     """    SECTION  12    DESIGN AND DETAILING FOR EARTHQUAKE   """
     # ==========================================================================
